@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+import os
+from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from models import Stock, StockPrice
+import requests
+from tqdm import tqdm
+import time
+import pandas as pd
+from datetime import date
+
+load_dotenv()
+
+engine = create_engine(os.getenv("DATABASE_URL"))
+
+Session = sessionmaker(bind=engine)
+session = Session()
+
+url = os.getenv("URL")
+headers = {
+    "Accept": os.getenv("ACCEPT"),
+    "Accept-Language": os.getenv("ACCEPT_LANGUAGE"),
+    "Connection": os.getenv("CONNECTION"),
+    "Content-Type": os.getenv("CONTENT_TYPE"),
+    "Cookie": os.getenv("COOKIE"),
+    "Origin": os.getenv("ORIGIN"),
+    "User-Agent": os.getenv("USER_AGENT"),
+}
+
+stocks = session.query(Stock).all()
+session.close()
+datas = []
+for stock in tqdm(stocks, desc="Fetching Data"):
+    headers["Referer"] = (
+        f"http://data.krx.co.kr/contents/MMC/ISIF/isif/MMCISIF003.cmd?tabIndex=0&isuCd={stock.code_full}&isuSrtCd={stock.code}&isuTp=STK&isuTpDtl=undefined&prodId=undefined"
+    )
+    data = {
+        "isuCd": stock.code_full,
+        "isuSrtCd": stock.code,
+        "isuTp": "STK",
+        "isuTpDtl": "undefined",
+        "bld": "dbms/MDC/STAT/standard/MDCSTAT02101",
+    }
+    response = requests.post(url, headers=headers, data=data)
+    json_data = response.json()
+    json_data["STOCK_ID"] = stock.id
+    json_data["COLLECTED_DATE"] = date.today()
+    datas.append(json_data)
+    time.sleep(1)
+df = pd.DataFrame(datas)[
+    ["STOCK_ID", "COLLECTED_DATE", "PRSNT_PRC", "FLUC_RT", "ACC_TRDVOL", "ACC_TRDVAL"]
+]
+for stock_price in df.itertuples():
+    new_stock_price = StockPrice(
+        stock_id=stock_price.STOCK_ID,
+        collected_date=stock_price.COLLECTED_DATE,
+        price=stock_price.PRSNT_PRC,
+        price_change=stock_price.FLUC_RT,
+        volume=stock_price.ACC_TRDVOL,
+        trade_value=stock_price.ACC_TRDVAL,
+    )
+    session.add(new_stock_price)
+session.commit()
+session.close()
