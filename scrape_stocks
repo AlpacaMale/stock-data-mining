@@ -1,0 +1,67 @@
+#!/usr/bin/env python
+import os
+from dotenv import load_dotenv
+import requests
+import pandas as pd
+import time
+from tqdm import tqdm
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from models import Stock
+
+load_dotenv()
+
+url = os.getenv("URL")
+
+headers = {
+    "Accept": os.getenv("ACCEPT"),
+    "Accept-Language": os.getenv("ACCEPT_LANGUAGE"),
+    "Connection": os.getenv("CONNECTION"),
+    "Content-Type": os.getenv("CONTENT_TYPE"),
+    "Cookie": os.getenv("COOKIE"),
+    "Origin": os.getenv("ORIGIN"),
+    "Referer": os.getenv("REFERER"),
+    "User-Agent": os.getenv("USER_AGENT"),
+}
+data = {
+    "bld": "dbms/MDC/EASY/ranking/MDCEASY01701",
+    "trdDd": "20250211",
+    "itmTpCd": "1",
+    "mktId": "ALL",
+}
+response = requests.post(url, headers=headers, data=data, verify=False)
+datas = response.json().get("OutBlock_1")
+df = pd.DataFrame(datas)[["ISU_CD", "ISU_CD_FULL", "ISU_ABBRV"]]
+datas = []
+for row in tqdm(df.itertuples(), desc="Fetching Data"):
+    headers["Referer"] = (
+        f"http://data.krx.co.kr/contents/MMC/ISIF/isif/MMCISIF003.cmd?tabIndex=0&isuCd={row.ISU_CD_FULL}&isuSrtCd={row.ISU_CD}&isuTp=STK&isuTpDtl=undefined&prodId=undefined"
+    )
+    data = {
+        "isuCd": row.ISU_CD_FULL,
+        "isuSrtCd": row.ISU_CD,
+        "isuTp": "STK",
+        "isuTpDtl": "undefined",
+        "bld": "dbms/MDC/STAT/standard/MDCSTAT02103",
+    }
+    response = requests.post(url, headers=headers, data=data, verify=False)
+    time.sleep(1)
+    datas.append(response.json())
+df = pd.DataFrame(datas)[["ISU_NM", "ISU_ENG_NM", "ISU_CD", "ISU_SRT_CD", "LIST_DD"]]
+
+engine = create_engine(os.getenv("DATABASE_URL"), echo=True)
+
+Session = sessionmaker(bind=engine)
+session = Session()
+
+for stock in tqdm(df.itertuples(), desc="Inserting Data"):
+    new_stock = Stock(
+        name_kr=stock.ISU_NM,
+        name_en=stock.ISU_ENG_NM,
+        code=stock.ISU_SRT_CD,
+        code_full=stock.ISU_CD,
+        listing_date=stock.LIST_DD,
+    )
+    session.add(new_stock)
+session.commit()
+session.close()
