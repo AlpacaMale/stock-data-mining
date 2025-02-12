@@ -1,0 +1,122 @@
+#!/usr/bin/env python
+
+import os
+from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from models import Stock, StockFinancials
+from tqdm import tqdm
+import requests
+import time
+from datetime import date
+import pandas as pd
+
+load_dotenv()
+
+engine = create_engine(os.getenv("DATABASE_URL"))
+Session = sessionmaker(bind=engine)
+session = Session()
+
+url = os.getenv("URL")
+headers = {
+    "Accept": os.getenv("ACCEPT"),
+    "Accept-Language": os.getenv("ACCEPT_LANGUAGE"),
+    "Connection": os.getenv("CONNECTION"),
+    "Content-Type": os.getenv("CONTENT_TYPE"),
+    "Cookie": os.getenv("COOKIE"),
+    "Origin": os.getenv("ORIGIN"),
+    "User-Agent": os.getenv("USER_AGENT"),
+}
+
+stocks = session.query(Stock).all()
+session.close()
+financial_datas = []
+fundamental_datas = []
+general_datas = []
+for stock in tqdm(stocks, desc="Fetching Data"):
+    headers["Referer"] = (
+        f"http://data.krx.co.kr/contents/MMC/ISIF/isif/MMCISIF003.cmd?tabIndex=0&isuCd={stock.code_full}&isuSrtCd={stock.code}&isuTp=STK&isuTpDtl=undefined&prodId=undefined"
+    )
+    data = {
+        "isuCd": stock.code_full,
+        "isuSrtCd": stock.code,
+        "isuTp": "STK",
+        "isuTpDtl": "undefined",
+        "bld": "dbms/MDC/STAT/standard/MDCSTAT02101",
+    }
+    response = requests.post(url, headers=headers, data=data)
+    json_data = response.json()
+    json_data["STOCK_ID"] = stock.id
+    json_data["COLLECTED_DATE"] = date.today()
+    financial_datas.append(json_data)
+    time.sleep(1)
+
+    data["bld"] = "dbms/MDC/STAT/standard/MDCSTAT02104"
+    response = requests.post(url, headers=headers, data=data)
+    json_data = response.json()
+    json_data["STOCK_ID"] = stock.id
+    json_data["COLLECTED_DATE"] = date.today()
+    fundamental_datas.append(json_data)
+    time.sleep(1)
+
+    data["bld"] = "dbms/MDC/STAT/standard/MDCSTAT02103"
+    response = requests.post(url, headers=headers, data=data)
+    json_data = response.json()
+    json_data["STOCK_ID"] = stock.id
+    json_data["COLLECTED_DATE"] = date.today()
+    general_datas.append(json_data)
+    time.sleep(1)
+
+financial_df = pd.DataFrame(financial_datas)[
+    [
+        "STOCK_ID",
+        "COLLECTED_DATE",
+        "FORN_RTO",
+        "PER",
+        "PBR",
+        "DIV_YD",
+    ]
+]
+fundamental_df = pd.DataFrame(fundamental_datas)[
+    [
+        "STOCK_ID",
+        "COLLECTED_DATE",
+        "ASST_TOTAMT",
+        "DEBT_TOTAMT",
+        "CAP",
+        "CAP_GRNDTOT",
+        "SALES",
+        "OPERPROFT_AMT",
+        "NETINCM",
+    ]
+]
+general_df = pd.DataFrame(general_datas)[
+    [
+        "STOCK_ID",
+        "COLLECTED_DATE",
+        "LIST_SHRS",
+    ]
+]
+df = pd.concat([financial_df, fundamental_df, general_df], axis=1)
+
+session = Session()
+for stock_financial in df.itertuples():
+    new_stock_financial = StockFinancials(
+        stock_id=stock_financial.STOCK_ID,
+        collected_date=stock_financial.COLLECTED_DATE,
+        total_asset=stock_financial.ASST_TOTAMT,
+        total_debt=stock_financial.DEBT_TOTAMT,
+        cap=stock_financial.CAP,
+        total_cap=stock_financial.CAP_GRNDTOT,
+        sales=stock_financial.SALES,
+        profit=stock_financial.OPERPROFT_AMT,
+        income=stock_financial.NETINCM,
+        forign_ratio=stock_financial.FORN_RTO,
+        pe_ratio=stock_financial.PER,
+        pb_ratio=stock_financial.PBR,
+        div_yield=stock_financial.DIV_YD,
+        total_shares=stock_financial.LIST_SHRS,
+    )
+    session.add(new_stock_financial)
+session.commit()
+session.close()
