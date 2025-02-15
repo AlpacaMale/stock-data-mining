@@ -10,6 +10,8 @@ import requests
 import time
 from datetime import date
 import pandas as pd
+from mail import send_mail
+import sys
 
 load_dotenv()
 
@@ -45,6 +47,13 @@ for stock in tqdm(stocks, desc="Fetching Data"):
         "bld": "dbms/MDC/STAT/standard/MDCSTAT02101",
     }
     response = requests.post(url, headers=headers, data=data)
+    if response.status_code != 200:
+        send_mail(
+            "Your scraping has been interrupted.",
+            f"Status Code: {response.status_code}\nResponse Centent: {response.text}",
+        )
+        sys.exit(1)
+
     json_data = response.json()
     json_data["STOCK_ID"] = stock.id
     json_data["COLLECTED_DATE"] = date.today()
@@ -53,6 +62,13 @@ for stock in tqdm(stocks, desc="Fetching Data"):
 
     data["bld"] = "dbms/MDC/STAT/standard/MDCSTAT02104"
     response = requests.post(url, headers=headers, data=data)
+    if response.status_code != 200:
+        send_mail(
+            "Your scraping has been interrupted.",
+            f"Status Code: {response.status_code}\nResponse Centent: {response.text}",
+        )
+        sys.exit(1)
+
     json_data = response.json()
     json_data["STOCK_ID"] = stock.id
     json_data["COLLECTED_DATE"] = date.today()
@@ -61,6 +77,13 @@ for stock in tqdm(stocks, desc="Fetching Data"):
 
     data["bld"] = "dbms/MDC/STAT/standard/MDCSTAT02103"
     response = requests.post(url, headers=headers, data=data)
+    if response.status_code != 200:
+        send_mail(
+            "Your scraping has been interrupted.",
+            f"Status Code: {response.status_code}\nResponse Centent: {response.text}",
+        )
+        sys.exit(1)
+
     json_data = response.json()
     json_data["STOCK_ID"] = stock.id
     json_data["COLLECTED_DATE"] = date.today()
