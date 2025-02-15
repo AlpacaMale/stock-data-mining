@@ -10,6 +10,7 @@
 ## 기능
 
 - 한국 거래소 사이트의 API를 이용하여 주식 데이터를 크롤링합니다.
+- 크롤링을 모니터링하고, 크롤링이 중지되면 메일을 전송합니다.
 
 ## 역할 분담
 
@@ -35,6 +36,8 @@
 ```
 ├── scrape_stocks / Script to scrape the top 50 stocks
 ├── scrape_stock_prices / Script to scrape daily stock prices
+├── scrape_stock_financials / Script to scrape stock financials
+├── mail.py / Sends an email using Gmail's SMTP server
 ├── models.py / Database models for stock data
 ├── requirements.txt / List of package dependencies
 └── README.md / Project documentation
@@ -75,6 +78,11 @@ ORIGIN=''
 REFERER=''
 USER_AGENT=''
 DATABASE_URL="mysql://user:passwd@host:port/database"
+SMTP_SERVER="smtp.gmail.com"
+SMTP_PORT=587
+SENDER_EMAIL="example@email.com"
+RECEIVER_EMAIL="example@email.com"
+PASSWORD="your password here"
 ```
 
 5. Set environment path
@@ -85,32 +93,22 @@ source ~/.bashrc
 
 ```
 
-6. Execute scripts
+6. Grant execute permission to the file
+
+```
+chmod +x scrape_stocks scrape_stock_prices scrape_stock_financials
+```
+
+7. Execute scripts
 
 ```
 scrape_stocks
 scrape_stock_prices
+scrpae_stock_financials
 
 ```
 
 ## 코드 컨벤션
-
-### VSCode
-
-_vscode/settings.json_
-
-```json
-{
-  "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter"
-  },
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.formatOnSave": true,
-  "prettier.tabWidth": 2,
-  "prettier.printWidth": 150,
-  "prettier.bracketSpacing": true
-}
-```
 
 ### 깃
 
