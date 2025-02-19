@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models import Stock, StockFinancials
@@ -12,8 +11,6 @@ from datetime import date
 import pandas as pd
 from mail import send_mail
 import sys
-
-load_dotenv()
 
 engine = create_engine(os.getenv("DATABASE_URL"))
 Session = sessionmaker(bind=engine)

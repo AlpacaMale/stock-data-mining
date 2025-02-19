@@ -2,9 +2,6 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 def send_mail(subject, message):
